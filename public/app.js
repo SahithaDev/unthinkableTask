@@ -142,7 +142,7 @@ function appointmentCard(appointment, actions = "") {
         <span>Specialisation: ${appointment.doctor?.specialisation || "-"}</span>
         <span>Urgency: ${pre?.urgency || "-"}</span>
       </div>
-      <p><strong>Symptoms:</strong> ${appointment.symptoms || "-"}</p>
+      <p><strong>Symptoms:</strong> ${pre?.cleanedSymptoms || appointment.symptoms || "-"}</p>
       ${pre ? `<p><strong>Doctor prep:</strong> ${pre.chiefComplaint}<br>${pre.suggestedQuestions.join(" ")}</p>` : ""}
       ${post ? `<p><strong>Patient summary:</strong> ${post.summary}<br><strong>Medication:</strong> ${post.medicationSchedule}</p>` : ""}
       ${appointment.cancelReason ? `<p class="danger">${appointment.cancelReason}</p>` : ""}
@@ -331,3 +331,4 @@ window.addDoctor = addDoctor;
 window.markLeave = markLeave;
 window.registerPatient = registerPatient;
 window.loadDoctors = loadDoctors;
+window.renderSelectedDoctorHelp = renderSelectedDoctorHelp;

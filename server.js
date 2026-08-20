@@ -3,7 +3,11 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
+loadEnv();
+
 const PORT = Number(process.env.PORT || 3000);
+const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
+const APP_TIME_ZONE = process.env.APP_TIME_ZONE || "Asia/Kolkata";
 const DATA_DIR = path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -31,8 +35,26 @@ const seed = {
   appointments: [],
   emailOutbox: [],
   calendarEvents: [],
+  integrationTokens: {},
   medicationReminders: []
 };
+
+function loadEnv() {
+  const envPath = path.join(__dirname, ".env");
+  if (!fs.existsSync(envPath)) return;
+  const lines = fs.readFileSync(envPath, "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue;
+    const index = trimmed.indexOf("=");
+    const key = trimmed.slice(0, index).trim();
+    let value = trimmed.slice(index + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (!process.env[key]) process.env[key] = value;
+  }
+}
 
 function ensureDb() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
@@ -136,17 +158,144 @@ function enqueueEmail(db, to, subject, body) {
     to,
     subject,
     body,
-    status: process.env.SENDGRID_API_KEY ? "queued" : "demo-queued",
+    status: hasEmailProvider() ? "queued" : "demo-queued",
     attempts: 0,
     createdAt: new Date().toISOString()
   });
 }
 
-function createCalendarEvent(db, appointment, doctor, patient) {
+function hasEmailProvider() {
+  return Boolean(process.env.BREVO_API_KEY || process.env.SENDGRID_API_KEY);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+async function sendBrevoEmail(mail) {
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "api-key": process.env.BREVO_API_KEY,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      sender: {
+        name: process.env.MAIL_FROM_NAME || "Healthcare Appointment Manager",
+        email: process.env.MAIL_FROM
+      },
+      to: [{ email: mail.to }],
+      subject: mail.subject,
+      textContent: mail.body,
+      htmlContent: `<html><body><p>${escapeHtml(mail.body).replaceAll("\n", "<br>")}</p></body></html>`
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || data.error || "Brevo email failed");
+  return data.messageId || "";
+}
+
+async function sendEmail(mail) {
+  if (process.env.BREVO_API_KEY) return sendBrevoEmail(mail);
+  throw new Error("No supported email provider configured. Add BREVO_API_KEY.");
+}
+
+function hasGoogleCalendarConfig() {
+  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI);
+}
+
+function googleCalendarConnected(db) {
+  return Boolean(db.integrationTokens?.google?.refresh_token || db.integrationTokens?.google?.access_token);
+}
+
+function addMinutesToLocalDateTime(localDateTime, durationMinutes) {
+  const [date, time] = localDateTime.split("T");
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  const result = new Date(year, month - 1, day, hour, minute + durationMinutes);
+  const adjusted = new Date(result.getTime() - result.getTimezoneOffset() * 60_000);
+  return adjusted.toISOString().slice(0, 16);
+}
+
+function calendarEventBody(appointment, doctor, patient) {
+  const pre = appointment.preVisitSummary || {};
+  const description = [
+    `Patient: ${patient.name}`,
+    `Doctor: ${doctor.name}`,
+    `Symptoms: ${pre.cleanedSymptoms || appointment.symptoms}`,
+    `Urgency: ${pre.urgency || "Not set"}`,
+    pre.chiefComplaint ? `Chief complaint: ${pre.chiefComplaint}` : "",
+    pre.suggestedQuestions?.length ? `Suggested questions: ${pre.suggestedQuestions.join(" | ")}` : ""
+  ].filter(Boolean).join("\n");
+  return {
+    summary: `Clinic appointment - ${patient.name} with ${doctor.name}`,
+    description,
+    start: { dateTime: `${appointment.startsAt}:00`, timeZone: APP_TIME_ZONE },
+    end: { dateTime: `${addMinutesToLocalDateTime(appointment.startsAt, doctor.slotDuration)}:00`, timeZone: APP_TIME_ZONE },
+    attendees: [{ email: patient.email }, { email: doctor.email }],
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: "email", minutes: 24 * 60 },
+        { method: "popup", minutes: 30 }
+      ]
+    }
+  };
+}
+
+async function refreshGoogleAccessToken(db) {
+  const google = db.integrationTokens?.google;
+  if (!google?.refresh_token) return google?.access_token || "";
+  if (google.access_token && google.expires_at && Date.now() < google.expires_at - 60_000) {
+    return google.access_token;
+  }
+  const params = new URLSearchParams({
+    client_id: process.env.GOOGLE_CLIENT_ID,
+    client_secret: process.env.GOOGLE_CLIENT_SECRET,
+    refresh_token: google.refresh_token,
+    grant_type: "refresh_token"
+  });
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error_description || data.error || "Google token refresh failed");
+  google.access_token = data.access_token;
+  google.expires_at = Date.now() + Number(data.expires_in || 3600) * 1000;
+  return google.access_token;
+}
+
+async function insertGoogleCalendarEvent(db, event, appointment, doctor, patient) {
+  const token = await refreshGoogleAccessToken(db);
+  if (!token) throw new Error("Google Calendar is not connected");
+  const response = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(calendarEventBody(appointment, doctor, patient))
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "Google Calendar event creation failed");
+  event.googleEventId = data.id;
+  event.htmlLink = data.htmlLink;
+  event.status = "created";
+}
+
+async function createCalendarEvent(db, appointment, doctor, patient) {
   const event = {
     id: id("cal"),
     appointmentId: appointment.id,
-    status: process.env.GOOGLE_CLIENT_ID ? "queued" : "demo-created",
+    status: hasGoogleCalendarConfig() && googleCalendarConnected(db) ? "queued" : "demo-created",
     title: `Appointment with ${doctor.name}`,
     attendees: [doctor.email, patient.email],
     startsAt: appointment.startsAt,
@@ -154,9 +303,17 @@ function createCalendarEvent(db, appointment, doctor, patient) {
   };
   db.calendarEvents.push(event);
   appointment.calendarEventId = event.id;
+  if (event.status === "queued") {
+    try {
+      await insertGoogleCalendarEvent(db, event, appointment, doctor, patient);
+    } catch (error) {
+      event.status = "failed";
+      event.error = error.message;
+    }
+  }
 }
 
-function preVisitSummary(symptoms) {
+function fallbackPreVisitSummary(symptoms) {
   const urgentWords = ["chest pain", "faint", "breath", "severe", "bleeding", "stroke"];
   const text = symptoms.toLowerCase();
   const urgency = urgentWords.some(word => text.includes(word)) ? "High" : symptoms.length > 140 ? "Medium" : "Low";
@@ -168,18 +325,103 @@ function preVisitSummary(symptoms) {
       "What makes the symptoms better or worse?",
       "Are there related medicines, allergies, or prior conditions?"
     ],
-    source: process.env.LLM_API_KEY ? "llm-ready" : "fallback"
+    source: "fallback"
   };
 }
 
-function postVisitSummary(notes, prescription) {
+function fallbackPostVisitSummary(notes, prescription) {
   const schedule = prescription || "Follow the doctor's prescription instructions.";
   return {
     summary: `Your visit notes were reviewed. ${notes.slice(0, 240)}`,
     medicationSchedule: schedule,
     followUpSteps: "Book follow-up if symptoms worsen or if the doctor requested a review.",
-    source: process.env.LLM_API_KEY ? "llm-ready" : "fallback"
+    source: "fallback"
   };
+}
+
+function extractJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("No JSON object returned");
+    return JSON.parse(match[0]);
+  }
+}
+
+async function generateWithGemini(prompt) {
+  const apiKey = process.env.LLM_API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("Gemini API key is not configured");
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: "application/json"
+      }
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "Gemini request failed");
+  const text = data.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("") || "";
+  if (!text) throw new Error("Gemini returned an empty response");
+  return extractJson(text);
+}
+
+async function preVisitSummary(symptoms) {
+  const fallback = fallbackPreVisitSummary(symptoms);
+  try {
+    const result = await generateWithGemini(`
+You are helping a doctor prepare for an appointment.
+Correct spelling and grammar, but do not invent symptoms.
+Return only valid JSON with this shape:
+{
+  "urgency": "Low | Medium | High",
+  "chiefComplaint": "one clean sentence",
+  "cleanedSymptoms": "spell-checked patient symptom description",
+  "suggestedQuestions": ["question 1", "question 2", "question 3"]
+}
+Symptoms: ${symptoms}
+`);
+    return {
+      urgency: ["Low", "Medium", "High"].includes(result.urgency) ? result.urgency : fallback.urgency,
+      chiefComplaint: result.chiefComplaint || fallback.chiefComplaint,
+      cleanedSymptoms: result.cleanedSymptoms || symptoms,
+      suggestedQuestions: Array.isArray(result.suggestedQuestions) ? result.suggestedQuestions.slice(0, 3) : fallback.suggestedQuestions,
+      source: "gemini"
+    };
+  } catch (error) {
+    return { ...fallback, error: error.message };
+  }
+}
+
+async function postVisitSummary(notes, prescription) {
+  const fallback = fallbackPostVisitSummary(notes, prescription);
+  try {
+    const result = await generateWithGemini(`
+Convert these clinical notes into a patient-friendly summary.
+Correct spelling and grammar, keep the advice simple, and do not add medical facts that are not present.
+Return only valid JSON with this shape:
+{
+  "summary": "patient-friendly visit summary",
+  "medicationSchedule": "clear medication schedule",
+  "followUpSteps": "clear follow-up steps"
+}
+Clinical notes: ${notes}
+Prescription: ${prescription || "No prescription entered"}
+`);
+    return {
+      summary: result.summary || fallback.summary,
+      medicationSchedule: result.medicationSchedule || fallback.medicationSchedule,
+      followUpSteps: result.followUpSteps || fallback.followUpSteps,
+      source: "gemini"
+    };
+  } catch (error) {
+    return { ...fallback, error: error.message };
+  }
 }
 
 function createMedicationReminder(db, appointment, prescription) {
@@ -265,15 +507,21 @@ async function handleApi(req, res) {
         startsAt: body.startsAt,
         symptoms: body.symptoms,
         status: "booked",
-        preVisitSummary: preVisitSummary(body.symptoms),
+        preVisitSummary: await preVisitSummary(body.symptoms),
         postVisitSummary: null,
         prescription: "",
         createdAt: new Date().toISOString()
       };
       db.appointments.push(appointment);
-      createCalendarEvent(db, appointment, doctor, user);
-      enqueueEmail(db, user.email, "Appointment confirmed", `Your appointment with ${doctor.name} is confirmed for ${body.startsAt}.`);
-      enqueueEmail(db, doctor.email, "New patient appointment", `${user.name} booked ${body.startsAt}. Urgency: ${appointment.preVisitSummary.urgency}.`);
+      await createCalendarEvent(db, appointment, doctor, user);
+      enqueueEmail(db, user.email, "Appointment confirmed", `Your appointment with ${doctor.name} is confirmed for ${body.startsAt}. A calendar invitation will be sent if Google Calendar is connected.`);
+      enqueueEmail(db, doctor.email, "New patient appointment", [
+        `${user.name} booked ${body.startsAt}.`,
+        `Urgency: ${appointment.preVisitSummary.urgency}.`,
+        `Chief complaint: ${appointment.preVisitSummary.chiefComplaint}.`,
+        `Cleaned symptoms: ${appointment.preVisitSummary.cleanedSymptoms || appointment.symptoms}.`,
+        `Suggested questions: ${(appointment.preVisitSummary.suggestedQuestions || []).join(" ")}`
+      ].join("\n"));
       writeDb(db);
       return json(res, 201, { appointment });
     } finally {
@@ -324,7 +572,7 @@ async function handleApi(req, res) {
     appointment.status = "completed";
     appointment.clinicalNotes = body.notes || "";
     appointment.prescription = body.prescription || "";
-    appointment.postVisitSummary = postVisitSummary(appointment.clinicalNotes, appointment.prescription);
+    appointment.postVisitSummary = await postVisitSummary(appointment.clinicalNotes, appointment.prescription);
     createMedicationReminder(db, appointment, appointment.prescription);
     const patient = db.users.find(item => item.id === appointment.patientId);
     enqueueEmail(db, patient.email, "Visit summary available", appointment.postVisitSummary.summary);
@@ -385,20 +633,115 @@ async function handleApi(req, res) {
     return json(res, 200, {
       emailOutbox: db.emailOutbox,
       calendarEvents: db.calendarEvents,
-      medicationReminders: db.medicationReminders
+      medicationReminders: db.medicationReminders,
+      integrations: {
+        gemini: Boolean(process.env.LLM_API_KEY || process.env.GEMINI_API_KEY),
+        brevo: Boolean(process.env.BREVO_API_KEY),
+        googleCalendarConfigured: hasGoogleCalendarConfig(),
+        googleCalendarConnected: googleCalendarConnected(db)
+      }
     });
   }
 
   json(res, 404, { error: "API route not found" });
 }
 
-function runBackgroundJobs() {
+function redirect(res, location) {
+  res.writeHead(302, { Location: location });
+  res.end();
+}
+
+async function handleGoogleOAuth(req, res) {
+  const db = readDb();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  if (!hasGoogleCalendarConfig()) {
+    res.writeHead(500, { "Content-Type": "text/html" });
+    res.end("<h1>Google Calendar is not configured</h1><p>Add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI to .env, then restart the app.</p>");
+    return;
+  }
+
+  if (url.pathname === "/oauth/google/start") {
+    const state = id("oauth");
+    db.integrationTokens = db.integrationTokens || {};
+    db.integrationTokens.googleOAuthState = state;
+    writeDb(db);
+    const params = new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      response_type: "code",
+      scope: "https://www.googleapis.com/auth/calendar.events",
+      access_type: "offline",
+      prompt: "consent",
+      state
+    });
+    redirect(res, `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+    return;
+  }
+
+  if (url.pathname === "/oauth/google/callback") {
+    if (url.searchParams.get("state") !== db.integrationTokens?.googleOAuthState) {
+      res.writeHead(400, { "Content-Type": "text/html" });
+      res.end("<h1>Google OAuth state mismatch</h1>");
+      return;
+    }
+    const code = url.searchParams.get("code");
+    if (!code) {
+      res.writeHead(400, { "Content-Type": "text/html" });
+      res.end(`<h1>Google OAuth failed</h1><p>${escapeHtml(url.searchParams.get("error") || "Missing code")}</p>`);
+      return;
+    }
+    const params = new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      code,
+      grant_type: "authorization_code",
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI
+    });
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params
+    });
+    const tokens = await response.json();
+    if (!response.ok) {
+      res.writeHead(500, { "Content-Type": "text/html" });
+      res.end(`<h1>Google token exchange failed</h1><p>${escapeHtml(tokens.error_description || tokens.error || "Unknown error")}</p>`);
+      return;
+    }
+    db.integrationTokens = db.integrationTokens || {};
+    db.integrationTokens.google = {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token || db.integrationTokens.google?.refresh_token,
+      expires_at: Date.now() + Number(tokens.expires_in || 3600) * 1000,
+      scope: tokens.scope,
+      connectedAt: new Date().toISOString()
+    };
+    delete db.integrationTokens.googleOAuthState;
+    writeDb(db);
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end("<h1>Google Calendar connected</h1><p>You can close this tab and book a new appointment. Calendar events will be created for connected bookings.</p>");
+  }
+}
+
+async function runBackgroundJobs() {
   const db = readDb();
   const now = new Date();
   for (const mail of db.emailOutbox.filter(item => item.status.endsWith("queued") && item.attempts < 3)) {
     mail.attempts += 1;
-    mail.status = process.env.SENDGRID_API_KEY ? "sent" : "demo-sent";
     mail.lastAttemptAt = now.toISOString();
+    if (mail.status === "demo-queued") {
+      mail.status = "demo-sent";
+      continue;
+    }
+    try {
+      mail.providerMessageId = await sendEmail(mail);
+      mail.status = "sent";
+      delete mail.error;
+    } catch (error) {
+      mail.status = mail.attempts >= 3 ? "failed" : "queued";
+      mail.error = error.message;
+    }
+    writeDb(db);
   }
   for (const reminder of db.medicationReminders.filter(item => item.status === "scheduled" && new Date(item.nextRunAt) <= now)) {
     const patient = db.users.find(item => item.id === reminder.patientId);
@@ -410,6 +753,7 @@ function runBackgroundJobs() {
 
 const server = http.createServer(async (req, res) => {
   try {
+    if (req.url.startsWith("/oauth/google/")) return await handleGoogleOAuth(req, res);
     if (req.url.startsWith("/api/")) return await handleApi(req, res);
     routeStatic(req, res);
   } catch (error) {
@@ -418,8 +762,10 @@ const server = http.createServer(async (req, res) => {
 });
 
 ensureDb();
-setInterval(runBackgroundJobs, 60_000);
+setInterval(() => runBackgroundJobs().catch(error => console.error(error)), 60_000);
 server.listen(PORT, () => {
   console.log(`Healthcare Appointment Manager running at http://localhost:${PORT}`);
+  if (hasGoogleCalendarConfig()) {
+    console.log(`Connect Google Calendar at ${APP_BASE_URL}/oauth/google/start`);
+  }
 });
-

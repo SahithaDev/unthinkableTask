@@ -36,9 +36,12 @@ No `node_modules` are committed, and the current implementation uses only built-
 | --- | --- | --- |
 | `PORT` | No | Server port. Defaults to `3000`. |
 | `APP_BASE_URL` | No | Public URL for deployment. |
-| `LLM_API_KEY` | No | Enables real LLM adapter work in a production extension. Without it, deterministic fallback summaries are used. |
-| `SENDGRID_API_KEY` | No | Enables real email adapter work in a production extension. Without it, emails move through demo outbox states. |
+| `APP_TIME_ZONE` | No | Calendar event time zone. Defaults to `Asia/Kolkata`. |
+| `LLM_API_KEY` | No | Gemini API key used to generate clean pre-visit and post-visit summaries. Without it, deterministic fallback summaries are used. |
+| `GEMINI_MODEL` | No | Gemini model name. Defaults to `gemini-2.5-flash`. |
+| `BREVO_API_KEY` | No | Sends queued transactional emails through Brevo. Without it, emails move through demo outbox states. |
 | `MAIL_FROM` | No | Sender address for real email integration. |
+| `MAIL_FROM_NAME` | No | Sender display name for Brevo emails. |
 | `GOOGLE_CLIENT_ID` | No | Google OAuth client id. |
 | `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret. |
 | `GOOGLE_REDIRECT_URI` | No | OAuth callback URL. |
@@ -90,7 +93,32 @@ Post-visit prompt:
 Convert these clinical notes into a patient-friendly summary with medication schedule and follow-up steps: <notes>
 ```
 
-LLM failures are handled gracefully by deterministic fallback functions in `server.js`, so booking and visit completion continue even when an external model is unavailable.
+LLM failures are handled gracefully by deterministic fallback functions in `server.js`, so booking and visit completion continue even when Gemini is unavailable.
+
+## Integration Setup
+
+Create `.env` from `.env.example`, add your real keys, then restart the server.
+
+Gemini:
+
+- Add your Google AI Studio key as `LLM_API_KEY`.
+- When a patient books, symptoms are corrected and summarized into urgency, chief complaint, cleaned symptoms, and doctor questions.
+- When a doctor completes a visit, notes and prescription are converted into a patient-friendly summary.
+
+Brevo:
+
+- Verify `MAIL_FROM` as a sender in Brevo.
+- Add `BREVO_API_KEY`.
+- Booking confirmations, doctor appointment notices, cancellations, visit summaries, and medication reminders are queued and sent by the background job.
+- Check Admin Portal > Notification and calendar queues for `sent`, `failed`, and provider message IDs.
+
+Google Calendar:
+
+- Add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI`.
+- In Google Cloud Console, the OAuth client must include this exact redirect URI: `http://localhost:3000/oauth/google/callback`.
+- Restart the server.
+- Open `http://localhost:3000/oauth/google/start` in the browser and approve Calendar access.
+- Book a new appointment. The app creates an event on the connected Google account's primary calendar, invites the doctor and patient emails, sends Google updates, and adds email/popup reminders.
 
 ## Google Calendar Setup Steps
 
@@ -99,8 +127,8 @@ LLM failures are handled gracefully by deterministic fallback functions in `serv
 3. Configure an OAuth consent screen.
 4. Create OAuth 2.0 credentials for a web application.
 5. Add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` to `.env`.
-6. In production, replace the demo calendar queue in `createCalendarEvent` with calls to Google Calendar `events.insert`, `events.patch`, and `events.delete`.
-7. Store refresh tokens securely per user so patient and doctor calendars can both be updated on booking, reschedule, or cancellation.
+6. Open `http://localhost:3000/oauth/google/start` and approve the app.
+7. For a production version, store refresh tokens securely per user so patient and doctor calendars can both be updated on booking, reschedule, or cancellation.
 
 ## System Design Write-up
 
