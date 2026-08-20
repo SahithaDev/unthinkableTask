@@ -6,4 +6,4 @@ out/
 coverage/
 tmp/
 *.log
-
+data/*.json
