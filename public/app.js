@@ -1,6 +1,7 @@
 const state = {
   token: localStorage.getItem("token") || "",
-  user: JSON.parse(localStorage.getItem("user") || "null")
+  user: JSON.parse(localStorage.getItem("user") || "null"),
+  doctors: []
 };
 
 function $(selector) {
@@ -12,6 +13,57 @@ function status(selector, message, ok = false) {
   if (!el) return;
   el.textContent = message || "";
   el.className = ok ? "status success" : "status";
+}
+
+function selectedDoctor() {
+  const doctorId = $("#doctorId")?.value;
+  return state.doctors.find(doctor => doctor.id === doctorId);
+}
+
+function timeToMinutes(time) {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function setMinimumAppointmentTime() {
+  const input = $("#startsAt");
+  if (!input) return;
+  const now = new Date();
+  now.setMinutes(now.getMinutes() + 15);
+  now.setSeconds(0, 0);
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  input.min = local.toISOString().slice(0, 16);
+}
+
+function renderSelectedDoctorHelp() {
+  const help = $("#doctor-help");
+  if (!help) return;
+  const doctor = selectedDoctor();
+  if (!doctor) {
+    help.textContent = "Select a doctor to see availability.";
+    return;
+  }
+  help.textContent = `${doctor.name} is available ${doctor.workingHours.start}-${doctor.workingHours.end}. Leave days: ${doctor.leaveDays.join(", ") || "None"}.`;
+}
+
+function validateBookingForm() {
+  const doctor = selectedDoctor();
+  const startsAt = $("#startsAt")?.value;
+  const symptoms = $("#symptoms")?.value.trim();
+  if (!doctor) return "Please select a doctor.";
+  if (!startsAt) return "Please select appointment date and time.";
+  if (!symptoms) return "Please describe the symptoms before confirming.";
+
+  const appointmentDate = startsAt.slice(0, 10);
+  const appointmentTime = startsAt.slice(11, 16);
+  if (doctor.leaveDays.includes(appointmentDate)) {
+    return `${doctor.name} is on leave on ${appointmentDate}. Please choose another date or doctor.`;
+  }
+  const time = timeToMinutes(appointmentTime);
+  if (time < timeToMinutes(doctor.workingHours.start) || time >= timeToMinutes(doctor.workingHours.end)) {
+    return `Please choose a time between ${doctor.workingHours.start} and ${doctor.workingHours.end}.`;
+  }
+  return "";
 }
 
 async function api(path, options = {}) {
@@ -102,10 +154,14 @@ function appointmentCard(appointment, actions = "") {
 async function loadDoctors() {
   const specialisation = $("#specialisation")?.value || "";
   const data = await api(`/api/doctors?specialisation=${encodeURIComponent(specialisation)}`);
+  state.doctors = data.doctors;
   const select = $("#doctorId");
   const list = $("#doctor-list");
   if (select) {
-    select.innerHTML = data.doctors.map(doctor => `<option value="${doctor.id}">${doctor.name} - ${doctor.specialisation}</option>`).join("");
+    select.innerHTML = data.doctors.length
+      ? data.doctors.map(doctor => `<option value="${doctor.id}">${doctor.name} - ${doctor.specialisation}</option>`).join("")
+      : `<option value="">No doctors found</option>`;
+    renderSelectedDoctorHelp();
   }
   const leaveSelect = $("#leaveDoctorId");
   if (leaveSelect) {
@@ -126,6 +182,7 @@ async function loadDoctors() {
 async function loadPatient() {
   if (!ensureRole("patient")) return;
   try {
+    setMinimumAppointmentTime();
     await loadDoctors();
     const data = await api("/api/appointments");
     $("#appointment-list").innerHTML = data.appointments.map(appointment => appointmentCard(
@@ -139,6 +196,12 @@ async function loadPatient() {
 
 async function bookAppointment() {
   try {
+    const validation = validateBookingForm();
+    if (validation) {
+      status("#booking-status", validation);
+      return;
+    }
+    status("#booking-status", "Confirming appointment...");
     const data = await api("/api/appointments", {
       method: "POST",
       body: JSON.stringify({
@@ -148,6 +211,7 @@ async function bookAppointment() {
       })
     });
     status("#booking-status", `Booked. Urgency: ${data.appointment.preVisitSummary.urgency}`, true);
+    $("#symptoms").value = "";
     await loadPatient();
   } catch (error) {
     status("#booking-status", error.message);

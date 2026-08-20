@@ -41,9 +41,10 @@
             <h2>Book appointment</h2>
             <div class="toolbar">
               <label>Search specialisation <input id="specialisation" placeholder="Cardiology" oninput="loadDoctors()"></label>
-              <label>Doctor <select id="doctorId"></select></label>
+              <label>Doctor <select id="doctorId" onchange="renderSelectedDoctorHelp()"></select></label>
               <label>Date and time <input id="startsAt" type="datetime-local"></label>
             </div>
+            <p id="doctor-help" class="muted">Select a doctor to see availability.</p>
             <label>Symptoms <textarea id="symptoms" placeholder="Describe symptoms, duration, severity, and related details"></textarea></label>
             <button class="primary" onclick="bookAppointment()">Confirm booking</button>
             <div id="booking-status" class="status"></div>
