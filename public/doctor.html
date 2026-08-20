@@ -6,7 +6,7 @@
     <title>Doctor Portal</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
-  <body onload="loadDoctor()">
+  <body data-role="doctor" onload="loadDoctor()">
     <header class="topbar">
       <div class="brand">Doctor Portal</div>
       <nav class="nav">
@@ -23,6 +23,7 @@
         <label>Email <input id="doctor-email" value="maya@clinic.test"></label>
         <label>Password <input id="doctor-password" type="password" value="doctor123"></label>
         <button class="primary" onclick="login('doctor')">Sign in</button>
+        <div id="doctor-status" class="status"></div>
       </section>
       <section class="private" hidden>
         <div class="hero-text">
@@ -35,4 +36,3 @@
     <script src="/app.js"></script>
   </body>
 </html>
-

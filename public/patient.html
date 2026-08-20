@@ -6,7 +6,7 @@
     <title>Patient Portal</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
-  <body onload="loadPatient()">
+  <body data-role="patient" onload="loadPatient()">
     <header class="topbar">
       <div class="brand">Patient Portal</div>
       <nav class="nav">
@@ -23,6 +23,7 @@
         <label>Email <input id="patient-email" value="patient@clinic.test"></label>
         <label>Password <input id="patient-password" type="password" value="patient123"></label>
         <button class="primary" onclick="login('patient')">Sign in</button>
+        <div id="patient-status" class="status"></div>
         <h2>New patient</h2>
         <label>Name <input id="registerName"></label>
         <label>Email <input id="registerEmail"></label>
@@ -63,4 +64,3 @@
     <script src="/app.js"></script>
   </body>
 </html>
-

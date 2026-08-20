@@ -29,18 +29,23 @@ async function api(path, options = {}) {
 }
 
 async function login(role) {
-  const email = $(`#${role}-email`).value;
-  const password = $(`#${role}-password`).value;
-  const data = await api("/api/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password })
-  });
-  if (data.user.role !== role) throw new Error(`This page is for ${role} users.`);
-  state.token = data.token;
-  state.user = data.user;
-  localStorage.setItem("token", state.token);
-  localStorage.setItem("user", JSON.stringify(state.user));
-  location.reload();
+  try {
+    status(`#${role}-status`, "");
+    const email = $(`#${role}-email`).value;
+    const password = $(`#${role}-password`).value;
+    const data = await api("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password })
+    });
+    if (data.user.role !== role) throw new Error(`This page is for ${role} users.`);
+    state.token = data.token;
+    state.user = data.user;
+    localStorage.setItem("token", state.token);
+    localStorage.setItem("user", JSON.stringify(state.user));
+    location.reload();
+  } catch (error) {
+    status(`#${role}-status`, error.message);
+  }
 }
 
 function logout() {
@@ -57,8 +62,20 @@ function ensureRole(role) {
   }
   $(".auth")?.setAttribute("hidden", "hidden");
   $(".private")?.removeAttribute("hidden");
-  $(".user-name").textContent = state.user.name;
+  const userName = $(".user-name");
+  if (userName) userName.textContent = state.user.name;
   return true;
+}
+
+function resetSession(message = "Please sign in again.") {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  state.token = "";
+  state.user = null;
+  $(".private")?.setAttribute("hidden", "hidden");
+  $(".auth")?.removeAttribute("hidden");
+  const page = document.body.dataset.role;
+  if (page) status(`#${page}-status`, message);
 }
 
 function appointmentCard(appointment, actions = "") {
@@ -108,12 +125,16 @@ async function loadDoctors() {
 
 async function loadPatient() {
   if (!ensureRole("patient")) return;
-  await loadDoctors();
-  const data = await api("/api/appointments");
-  $("#appointment-list").innerHTML = data.appointments.map(appointment => appointmentCard(
-    appointment,
-    appointment.status === "booked" ? `<button onclick="cancelAppointment('${appointment.id}')">Cancel</button>` : ""
-  )).join("") || "<p>No appointments yet.</p>";
+  try {
+    await loadDoctors();
+    const data = await api("/api/appointments");
+    $("#appointment-list").innerHTML = data.appointments.map(appointment => appointmentCard(
+      appointment,
+      appointment.status === "booked" ? `<button onclick="cancelAppointment('${appointment.id}')">Cancel</button>` : ""
+    )).join("") || "<p>No appointments yet.</p>";
+  } catch (error) {
+    resetSession(error.message);
+  }
 }
 
 async function bookAppointment() {
@@ -140,17 +161,21 @@ async function cancelAppointment(id) {
 
 async function loadDoctor() {
   if (!ensureRole("doctor")) return;
-  const data = await api("/api/appointments");
-  $("#doctor-appointments").innerHTML = data.appointments.map(appointment => appointmentCard(
-    appointment,
-    appointment.status === "booked" ? `
-      <div class="stack">
-        <label>Clinical notes <textarea id="notes-${appointment.id}"></textarea></label>
-        <label>Prescription and frequency <textarea id="rx-${appointment.id}" placeholder="Paracetamol 500mg twice daily for 3 days"></textarea></label>
-        <button class="primary" onclick="completeVisit('${appointment.id}')">Submit visit notes</button>
-      </div>
-    ` : ""
-  )).join("") || "<p>No appointments assigned.</p>";
+  try {
+    const data = await api("/api/appointments");
+    $("#doctor-appointments").innerHTML = data.appointments.map(appointment => appointmentCard(
+      appointment,
+      appointment.status === "booked" ? `
+        <div class="stack">
+          <label>Clinical notes <textarea id="notes-${appointment.id}"></textarea></label>
+          <label>Prescription and frequency <textarea id="rx-${appointment.id}" placeholder="Paracetamol 500mg twice daily for 3 days"></textarea></label>
+          <button class="primary" onclick="completeVisit('${appointment.id}')">Submit visit notes</button>
+        </div>
+      ` : ""
+    )).join("") || "<p>No appointments assigned.</p>";
+  } catch (error) {
+    resetSession(error.message);
+  }
 }
 
 async function completeVisit(id) {
@@ -170,11 +195,15 @@ async function completeVisit(id) {
 
 async function loadAdmin() {
   if (!ensureRole("admin")) return;
-  await loadDoctors();
-  const appointments = await api("/api/appointments");
-  $("#admin-appointments").innerHTML = appointments.appointments.map(appointment => appointmentCard(appointment)).join("") || "<p>No appointments yet.</p>";
-  const ops = await api("/api/admin/ops");
-  $("#ops").textContent = JSON.stringify(ops, null, 2);
+  try {
+    await loadDoctors();
+    const appointments = await api("/api/appointments");
+    $("#admin-appointments").innerHTML = appointments.appointments.map(appointment => appointmentCard(appointment)).join("") || "<p>No appointments yet.</p>";
+    const ops = await api("/api/admin/ops");
+    $("#ops").textContent = JSON.stringify(ops, null, 2);
+  } catch (error) {
+    resetSession(error.message);
+  }
 }
 
 async function addDoctor() {

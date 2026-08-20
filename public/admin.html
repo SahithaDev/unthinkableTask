@@ -6,7 +6,7 @@
     <title>Admin Portal</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
-  <body onload="loadAdmin()">
+  <body data-role="admin" onload="loadAdmin()">
     <header class="topbar">
       <div class="brand">Admin Portal</div>
       <nav class="nav">
@@ -23,6 +23,7 @@
         <label>Email <input id="admin-email" value="admin@clinic.test"></label>
         <label>Password <input id="admin-password" type="password" value="admin123"></label>
         <button class="primary" onclick="login('admin')">Sign in</button>
+        <div id="admin-status" class="status"></div>
       </section>
       <section class="private" hidden>
         <div class="hero-text">
@@ -67,4 +68,3 @@
     <script src="/app.js"></script>
   </body>
 </html>
-
