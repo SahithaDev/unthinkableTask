@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin Portal</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body onload="loadAdmin()">
+    <header class="topbar">
+      <div class="brand">Admin Portal</div>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/patient.html">Patient</a>
+        <a href="/doctor.html">Doctor</a>
+        <a class="active" href="/admin.html">Admin</a>
+        <button onclick="logout()">Logout</button>
+      </nav>
+    </header>
+    <main>
+      <section class="auth panel">
+        <h1>Admin sign in</h1>
+        <label>Email <input id="admin-email" value="admin@clinic.test"></label>
+        <label>Password <input id="admin-password" type="password" value="admin123"></label>
+        <button class="primary" onclick="login('admin')">Sign in</button>
+      </section>
+      <section class="private" hidden>
+        <div class="hero-text">
+          <h1>Clinic operations</h1>
+          <p>Manage doctors, working hours, slot duration, leave days, booking conflicts, and notification queues.</p>
+        </div>
+        <section class="grid two">
+          <div class="panel">
+            <h2>Create doctor</h2>
+            <label>Name <input id="doctorName" placeholder="Dr. Neha Shah"></label>
+            <label>Email <input id="doctorEmail" placeholder="neha@clinic.test"></label>
+            <label>Password <input id="doctorPassword" placeholder="doctor123"></label>
+            <label>Specialisation <input id="doctorSpec" placeholder="Dermatology"></label>
+            <div class="toolbar">
+              <label>Start <input id="workStart" type="time" value="09:00"></label>
+              <label>End <input id="workEnd" type="time" value="17:00"></label>
+              <label>Slot minutes <input id="slotDuration" type="number" value="30" min="10"></label>
+            </div>
+            <button class="primary" onclick="addDoctor()">Add doctor</button>
+            <div id="doctor-status" class="status"></div>
+          </div>
+          <div class="panel">
+            <h2>Doctor leave</h2>
+            <label>Doctor <select id="leaveDoctorId"></select></label>
+            <label>Date <input id="leaveDate" type="date"></label>
+            <button class="primary" onclick="markLeave()">Mark leave and notify</button>
+            <div id="leave-status" class="status"></div>
+            <h2>Doctors</h2>
+            <div id="doctor-list" class="list"></div>
+          </div>
+        </section>
+        <section class="panel">
+          <h2>Appointments</h2>
+          <div id="admin-appointments" class="list"></div>
+        </section>
+        <section class="panel">
+          <h2>Notification and calendar queues</h2>
+          <pre id="ops"></pre>
+        </section>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
+

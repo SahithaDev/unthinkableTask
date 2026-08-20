@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Patient Portal</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body onload="loadPatient()">
+    <header class="topbar">
+      <div class="brand">Patient Portal</div>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a class="active" href="/patient.html">Patient</a>
+        <a href="/doctor.html">Doctor</a>
+        <a href="/admin.html">Admin</a>
+        <button onclick="logout()">Logout</button>
+      </nav>
+    </header>
+    <main>
+      <section class="auth panel">
+        <h1>Patient sign in</h1>
+        <label>Email <input id="patient-email" value="patient@clinic.test"></label>
+        <label>Password <input id="patient-password" type="password" value="patient123"></label>
+        <button class="primary" onclick="login('patient')">Sign in</button>
+        <h2>New patient</h2>
+        <label>Name <input id="registerName"></label>
+        <label>Email <input id="registerEmail"></label>
+        <label>Password <input id="registerPassword" type="password"></label>
+        <button onclick="registerPatient()">Register</button>
+        <div id="register-status" class="status"></div>
+      </section>
+      <section class="private" hidden>
+        <div class="hero">
+          <div class="hero-text">
+            <h1>Welcome, <span class="user-name"></span></h1>
+            <p>Find a specialist, share symptoms before confirmation, and receive visit summaries after your doctor completes notes.</p>
+          </div>
+          <div class="panel">
+            <h2>Book appointment</h2>
+            <div class="toolbar">
+              <label>Search specialisation <input id="specialisation" placeholder="Cardiology" oninput="loadDoctors()"></label>
+              <label>Doctor <select id="doctorId"></select></label>
+              <label>Date and time <input id="startsAt" type="datetime-local"></label>
+            </div>
+            <label>Symptoms <textarea id="symptoms" placeholder="Describe symptoms, duration, severity, and related details"></textarea></label>
+            <button class="primary" onclick="bookAppointment()">Confirm booking</button>
+            <div id="booking-status" class="status"></div>
+          </div>
+        </div>
+        <section class="grid two">
+          <div class="panel">
+            <h2>Available doctors</h2>
+            <div id="doctor-list" class="list"></div>
+          </div>
+          <div class="panel">
+            <h2>Your appointments</h2>
+            <div id="appointment-list" class="list"></div>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
+

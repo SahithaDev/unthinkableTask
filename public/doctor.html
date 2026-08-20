@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Doctor Portal</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body onload="loadDoctor()">
+    <header class="topbar">
+      <div class="brand">Doctor Portal</div>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/patient.html">Patient</a>
+        <a class="active" href="/doctor.html">Doctor</a>
+        <a href="/admin.html">Admin</a>
+        <button onclick="logout()">Logout</button>
+      </nav>
+    </header>
+    <main>
+      <section class="auth panel">
+        <h1>Doctor sign in</h1>
+        <label>Email <input id="doctor-email" value="maya@clinic.test"></label>
+        <label>Password <input id="doctor-password" type="password" value="doctor123"></label>
+        <button class="primary" onclick="login('doctor')">Sign in</button>
+      </section>
+      <section class="private" hidden>
+        <div class="hero-text">
+          <h1>Today’s clinical queue</h1>
+          <p>Review patient symptoms and AI-generated urgency before the visit, then submit notes and prescriptions to produce a patient-friendly summary.</p>
+        </div>
+        <div id="doctor-appointments" class="list"></div>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
+
