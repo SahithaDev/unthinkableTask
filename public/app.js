@@ -130,12 +130,23 @@ function resetSession(message = "Please sign in again.") {
   if (page) status(`#${page}-status`, message);
 }
 
+function urgencyBadge(level) {
+  const map = { High: "background:#fef2f2;color:#b91c1c;", Medium: "background:#fffbeb;color:#b45309;", Low: "background:#f0fdf4;color:#15803d;" };
+  const style = map[level] || "";
+  return level ? `<span class="badge" style="${style}">${level} urgency</span>` : "";
+}
+
 function appointmentCard(appointment, actions = "") {
   const pre = appointment.preVisitSummary;
   const post = appointment.postVisitSummary;
+  const statusClass = { booked: "badge-booked", completed: "badge-completed", cancelled: "badge-cancelled" }[appointment.status] || "";
   return `
     <article class="card">
-      <h3>${appointment.doctor?.name || "Doctor"} <span class="badge">${appointment.status}</span></h3>
+      <h3>
+        ${appointment.doctor?.name || "Doctor"}
+        <span class="badge ${statusClass}">${appointment.status}</span>
+        ${urgencyBadge(pre?.urgency)}
+      </h3>
       <div class="appointment-meta">
         <span>Patient: ${appointment.patient?.name || state.user?.name || "Patient"}</span>
         <span>Time: ${new Date(appointment.startsAt).toLocaleString()}</span>
@@ -143,10 +154,10 @@ function appointmentCard(appointment, actions = "") {
         <span>Urgency: ${pre?.urgency || "-"}</span>
       </div>
       <p><strong>Symptoms:</strong> ${pre?.cleanedSymptoms || appointment.symptoms || "-"}</p>
-      ${pre ? `<p><strong>Doctor prep:</strong> ${pre.chiefComplaint}<br>${pre.suggestedQuestions.join(" ")}</p>` : ""}
-      ${post ? `<p><strong>Patient summary:</strong> ${post.summary}<br><strong>Medication:</strong> ${post.medicationSchedule}</p>` : ""}
-      ${appointment.cancelReason ? `<p class="danger">${appointment.cancelReason}</p>` : ""}
-      ${actions}
+      ${pre ? `<p style="margin-top:6px;"><strong>Doctor prep:</strong> ${pre.chiefComplaint}</p><p style="font-size:13px;color:var(--muted);">${pre.suggestedQuestions.map(q => `• ${q}`).join("<br>")}</p>` : ""}
+      ${post ? `<div style="margin-top:10px;padding:12px;background:var(--success-light);border:1px solid #bbf7d0;border-radius:var(--radius-sm);font-size:13px;"><strong>Visit summary:</strong> ${post.summary}<br><strong>Medication:</strong> ${post.medicationSchedule}</div>` : ""}
+      ${appointment.cancelReason ? `<p class="danger" style="margin-top:8px;">⚠ ${appointment.cancelReason}</p>` : ""}
+      ${actions ? `<div style="margin-top:14px;">${actions}</div>` : ""}
     </article>
   `;
 }
@@ -171,9 +182,9 @@ async function loadDoctors() {
     list.innerHTML = data.doctors.map(doctor => `
       <article class="card">
         <h3>${doctor.name}</h3>
-        <p>${doctor.specialisation}</p>
-        <p class="muted">${doctor.workingHours.start}-${doctor.workingHours.end}, ${doctor.slotDuration} minute slots</p>
-        <p class="muted">Leave: ${doctor.leaveDays.join(", ") || "None"}</p>
+        <span class="doctor-card-spec">${doctor.specialisation}</span>
+        <p class="muted" style="margin-top:6px;">🕐 ${doctor.workingHours.start}–${doctor.workingHours.end} &nbsp;·&nbsp; ${doctor.slotDuration} min slots</p>
+        <p class="muted">📅 Leave: ${doctor.leaveDays.join(", ") || "None scheduled"}</p>
       </article>
     `).join("");
   }
@@ -187,7 +198,7 @@ async function loadPatient() {
     const data = await api("/api/appointments");
     $("#appointment-list").innerHTML = data.appointments.map(appointment => appointmentCard(
       appointment,
-      appointment.status === "booked" ? `<button onclick="cancelAppointment('${appointment.id}')">Cancel</button>` : ""
+      appointment.status === "booked" ? `<button class="danger-btn" onclick="cancelAppointment('${appointment.id}')">Cancel appointment</button>` : ""
     )).join("") || "<p>No appointments yet.</p>";
   } catch (error) {
     resetSession(error.message);
@@ -273,7 +284,7 @@ async function loadAdmin() {
       const calCreated  = (ops.calendarEvents || []).filter(e => e.status === "created" || e.status === "demo-created").length;
       const calQueued   = (ops.calendarEvents || []).filter(e => e.status === "queued").length;
       const reminders   = (ops.medicationReminders || []).length;
-      function dot(on) { return `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${on ? "#0f766e" : "#d1d5db"};margin-right:6px;vertical-align:middle;"></span>`; }
+      function dot(on) { return `<span class="int-dot ${on ? "on" : "off"}"></span>`; }
       summary.innerHTML = `
         <article class="card">
           <h3>Services</h3>
