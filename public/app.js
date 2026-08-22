@@ -158,6 +158,17 @@ function appointmentCard(appointment, actions = "") {
       ${post ? `<div style="margin-top:10px;padding:12px;background:var(--success-light);border:1px solid #bbf7d0;border-radius:var(--radius-sm);font-size:13px;"><strong>Visit summary:</strong> ${post.summary}<br><strong>Medication:</strong> ${post.medicationSchedule}</div>` : ""}
       ${appointment.cancelReason ? `<p class="danger" style="margin-top:8px;">⚠ ${appointment.cancelReason}</p>` : ""}
       ${actions ? `<div style="margin-top:14px;">${actions}</div>` : ""}
+      <div id="reschedule-form-${appointment.id}" hidden style="margin-top:14px;padding:14px;background:var(--line-soft);border:1px solid var(--line);border-radius:var(--radius-sm);">
+        <label style="font-size:13px;font-weight:600;color:var(--ink-soft);display:grid;gap:5px;margin-bottom:10px;">
+          New date and time
+          <input type="datetime-local" id="reschedule-time-${appointment.id}">
+        </label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="primary" onclick="confirmReschedule('${appointment.id}')">Confirm reschedule</button>
+          <button onclick="toggleRescheduleForm('${appointment.id}')">Cancel</button>
+        </div>
+        <div id="reschedule-status-${appointment.id}" class="status"></div>
+      </div>
     </article>
   `;
 }
@@ -198,7 +209,10 @@ async function loadPatient() {
     const data = await api("/api/appointments");
     $("#appointment-list").innerHTML = data.appointments.map(appointment => appointmentCard(
       appointment,
-      appointment.status === "booked" ? `<button class="danger-btn" onclick="cancelAppointment('${appointment.id}')">Cancel appointment</button>` : ""
+      appointment.status === "booked" ? `
+        <button class="danger-btn" onclick="cancelAppointment('${appointment.id}')">Cancel appointment</button>
+        <button onclick="toggleRescheduleForm('${appointment.id}')" style="margin-left:8px;">Reschedule</button>
+      ` : ""
     )).join("") || "<p>No appointments yet.</p>";
   } catch (error) {
     resetSession(error.message);
@@ -387,6 +401,44 @@ function connectGoogleCalendar() {
   window.location.href = "/oauth/google/start";
 }
 
+function toggleRescheduleForm(id) {
+  const form = $(`#reschedule-form-${id}`);
+  if (!form) return;
+  if (form.hasAttribute("hidden")) {
+    // set minimum time same as booking form
+    const input = $(`#reschedule-time-${id}`);
+    if (input) {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() + 15);
+      now.setSeconds(0, 0);
+      const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+      input.min = local.toISOString().slice(0, 16);
+    }
+    form.removeAttribute("hidden");
+  } else {
+    form.setAttribute("hidden", "hidden");
+  }
+}
+
+async function confirmReschedule(id) {
+  const input = $(`#reschedule-time-${id}`);
+  const statusEl = $(`#reschedule-status-${id}`);
+  if (!input?.value) {
+    if (statusEl) { statusEl.textContent = "Please select a new date and time."; statusEl.className = "status"; }
+    return;
+  }
+  if (statusEl) { statusEl.textContent = "Rescheduling…"; statusEl.className = "status"; }
+  try {
+    await api(`/api/appointments/${id}/reschedule`, {
+      method: "PATCH",
+      body: JSON.stringify({ startsAt: input.value }),
+    });
+    await loadPatient();
+  } catch (error) {
+    if (statusEl) { statusEl.textContent = error.message; statusEl.className = "status"; }
+  }
+}
+
 window.login = login;
 window.logout = logout;
 window.loadPatient = loadPatient;
@@ -400,5 +452,7 @@ window.markLeave = markLeave;
 window.registerPatient = registerPatient;
 window.connectGoogleCalendar = connectGoogleCalendar;
 window.updateGoogleCalendarStatus = updateGoogleCalendarStatus;
+window.toggleRescheduleForm = toggleRescheduleForm;
+window.confirmReschedule = confirmReschedule;
 window.loadDoctors = loadDoctors;
 window.renderSelectedDoctorHelp = renderSelectedDoctorHelp;

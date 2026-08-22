@@ -746,6 +746,82 @@ async function handleApi(req, res) {
   if (
     req.method === "PATCH" &&
     url.pathname.startsWith("/api/appointments/") &&
+    url.pathname.endsWith("/reschedule")
+  ) {
+    const user = requireRole(req, res, db, ["patient", "admin"]);
+    if (!user) return;
+    const appointment = db.appointments.find(
+      (item) => item.id === url.pathname.split("/")[3],
+    );
+    if (!appointment) return json(res, 404, { error: "Appointment not found" });
+    if (appointment.status !== "booked")
+      return json(res, 400, { error: "Only booked appointments can be rescheduled" });
+    if (user.role === "patient" && appointment.patientId !== user.id)
+      return json(res, 403, { error: "Cannot reschedule another patient's appointment" });
+    if (!body.startsAt)
+      return json(res, 400, { error: "New date and time are required" });
+    const doctor = db.doctors.find((item) => item.id === appointment.doctorId);
+    if (!doctor) return json(res, 404, { error: "Doctor not found" });
+    const key = slotKey(doctor.id, body.startsAt);
+    if (slotLocks.has(key))
+      return json(res, 409, { error: "Another booking is being confirmed for this slot. Please retry." });
+    slotLocks.add(key);
+    try {
+      const availability = isSlotAvailable(db, doctor, body.startsAt, appointment.id);
+      if (!availability.ok) return json(res, 409, { error: availability.reason });
+      const oldStartsAt = appointment.startsAt;
+      appointment.startsAt = body.startsAt;
+      const patient = db.users.find((item) => item.id === appointment.patientId);
+      // Update Google Calendar event if it exists
+      const cal = db.calendarEvents.find((item) => item.appointmentId === appointment.id);
+      if (cal) {
+        cal.startsAt = body.startsAt;
+        if (cal.googleEventId && hasGoogleCalendarConfig() && googleCalendarConnected(db)) {
+          try {
+            const token = await refreshGoogleAccessToken(db);
+            const updatedBody = calendarEventBody(appointment, doctor, patient);
+            const response = await fetch(
+              `https://www.googleapis.com/calendar/v3/calendars/primary/events/${cal.googleEventId}?sendUpdates=all`,
+              {
+                method: "PUT",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(updatedBody),
+              },
+            );
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error?.message || "Google Calendar update failed");
+            cal.status = "created";
+          } catch (error) {
+            cal.status = "update-failed";
+            cal.error = error.message;
+          }
+        }
+      }
+      enqueueEmail(
+        db,
+        patient.email,
+        "Appointment rescheduled",
+        `Your appointment with ${doctor.name} has been moved from ${oldStartsAt} to ${body.startsAt}.`,
+      );
+      enqueueEmail(
+        db,
+        doctor.email,
+        "Appointment rescheduled",
+        `${patient.name}'s appointment has been moved from ${oldStartsAt} to ${body.startsAt}.`,
+      );
+      writeDb(db);
+      return json(res, 200, { appointment });
+    } finally {
+      slotLocks.delete(key);
+    }
+  }
+
+  if (
+    req.method === "PATCH" &&
+    url.pathname.startsWith("/api/appointments/") &&
     url.pathname.endsWith("/visit")
   ) {
     const user = requireRole(req, res, db, ["doctor"]);
