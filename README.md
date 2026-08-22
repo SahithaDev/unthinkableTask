@@ -34,7 +34,7 @@ The app implements role-based login, doctor search, appointment booking with sym
       <img width="400" height="500" alt="image" src="https://github.com/user-attachments/assets/d44e26ad-368a-438c-958e-3d69cc06fc40" />
 
 - [x] Doctor leave → affected patients notified automatically
-      <img width="400" height="500" alt="image" src="https://github.com/user-attachments/assets/d6ae312c-113c-4d17-bb1c-2f7db6817365" />
+      <img width="400" height="100" alt="image" src="https://github.com/user-attachments/assets/d6ae312c-113c-4d17-bb1c-2f7db6817365" />
 
 - [x] Pre-visit LLM symptom summary (urgency level, chief complaint, suggested questions)
 - [x] Post-visit LLM patient-friendly summary (medication schedule, follow-up steps)
