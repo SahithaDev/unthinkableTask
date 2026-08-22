@@ -1,5 +1,9 @@
 # Healthcare Appointment & Follow-up Manager
 
+## Overview
+
+A clinic appointment platform with three role-based portals — patient, doctor, and admin. Patients book appointments and submit symptoms in advance; an LLM generates a pre-visit urgency summary for the doctor and a patient-friendly post-visit summary after the consultation. Both sides get email and Google Calendar updates on booking, reschedule, and cancellation, and patients get automated medication reminders based on their prescription.
+
 A dependency-free Node.js demo application for a clinic appointment workflow with three separate interfaces:
 
 - Patient portal: `/patient.html`
@@ -8,13 +12,44 @@ A dependency-free Node.js demo application for a clinic appointment workflow wit
 
 The app implements role-based login, doctor search, appointment booking with symptom capture, double-booking prevention, doctor leave handling, pre-visit and post-visit AI-style summaries, email/calendar outboxes, and medication reminder scheduling.
 
-## Demo Accounts
+## Live Demo
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Admin | `admin@clinic.test` | `admin123` |
-| Doctor | `maya@clinic.test` | `doctor123` |
+- Hosted URL: `<add your deployed link here>`
+- Local: `http://localhost:3000` after following Setup Guide below
+
+**Demo Accounts**
+
+| Role    | Email                 | Password     |
+| ------- | --------------------- | ------------ |
+| Admin   | `admin@clinic.test`   | `admin123`   |
+| Doctor  | `maya@clinic.test`    | `doctor123`  |
 | Patient | `patient@clinic.test` | `patient123` |
+
+## Feature Checklist
+
+- [x] Role-based auth (patient / doctor / admin)
+- [x] Admin creates and manages doctor profiles (specialisation, working hours, slot duration, leave days)
+- [x] Patient registration, login, doctor search by specialisation, slot booking
+- [x] Double-booking prevention & simultaneous booking handling — see [System Design Write-up](#system-design-write-up)
+- [x] Doctor leave → affected patients notified automatically
+- [x] Pre-visit LLM symptom summary (urgency level, chief complaint, suggested questions)
+- [x] Post-visit LLM patient-friendly summary (medication schedule, follow-up steps)
+- [x] Medication reminders based on prescription frequency (background job)
+- [x] Email notifications: booking confirmation, reminder, cancellation, reschedule
+- [x] Google Calendar sync: create on booking, update on reschedule, delete on cancellation
+- [x] Graceful LLM failure handling (deterministic fallback summaries)
+- [x] Graceful notification failure handling (outbox + retry queue)
+
+## Proof of Core Features
+
+_(Add screenshots or a short GIF walkthrough here — these are the parts a reviewer can't verify without running the app locally, e.g. Google OAuth being tied to localhost.)_
+
+- [ ] Screenshot: booking rejected/retried on double-booking attempt
+- [ ] Screenshot: pre-visit LLM summary with urgency level shown on doctor portal
+- [ ] Screenshot: post-visit patient-friendly summary
+- [ ] Screenshot: Google Calendar event created after booking
+- [ ] Screenshot: email received (booking confirmation / cancellation)
+- [ ] Screenshot: admin leave-conflict notification triggered
 
 ## Setup Guide
 
@@ -32,51 +67,51 @@ No `node_modules` are committed, and the current implementation uses only built-
 
 ## Environment Variables
 
-| Name | Required | Purpose |
-| --- | --- | --- |
-| `PORT` | No | Server port. Defaults to `3000`. |
-| `APP_BASE_URL` | No | Public URL for deployment. |
-| `APP_TIME_ZONE` | No | Calendar event time zone. Defaults to `Asia/Kolkata`. |
-| `LLM_API_KEY` | No | Gemini API key used to generate clean pre-visit and post-visit summaries. Without it, deterministic fallback summaries are used. |
-| `GEMINI_MODEL` | No | Gemini model name. Defaults to `gemini-3.6-flash`. |
-| `BREVO_API_KEY` | No | Sends queued transactional emails through Brevo. Without it, emails move through demo outbox states. |
-| `MAIL_FROM` | No | Sender address for real email integration. |
-| `MAIL_FROM_NAME` | No | Sender display name for Brevo emails. |
-| `GOOGLE_CLIENT_ID` | No | Google OAuth client id. |
-| `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret. |
-| `GOOGLE_REDIRECT_URI` | No | OAuth callback URL. |
+| Name                   | Required | Purpose                                                                                                                          |
+| ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                 | No       | Server port. Defaults to `3000`.                                                                                                 |
+| `APP_BASE_URL`         | No       | Public URL for deployment.                                                                                                       |
+| `APP_TIME_ZONE`        | No       | Calendar event time zone. Defaults to `Asia/Kolkata`.                                                                            |
+| `LLM_API_KEY`          | No       | Gemini API key used to generate clean pre-visit and post-visit summaries. Without it, deterministic fallback summaries are used. |
+| `GEMINI_MODEL`         | No       | Gemini model name. Defaults to `gemini-3.6-flash`.                                                                               |
+| `BREVO_API_KEY`        | No       | Sends queued transactional emails through Brevo. Without it, emails move through demo outbox states.                             |
+| `MAIL_FROM`            | No       | Sender address for real email integration.                                                                                       |
+| `MAIL_FROM_NAME`       | No       | Sender display name for Brevo emails.                                                                                            |
+| `GOOGLE_CLIENT_ID`     | No       | Google OAuth client id.                                                                                                          |
+| `GOOGLE_CLIENT_SECRET` | No       | Google OAuth client secret.                                                                                                      |
+| `GOOGLE_REDIRECT_URI`  | No       | OAuth callback URL.                                                                                                              |
 
 ## API Docs
 
 All authenticated endpoints use `Authorization: Bearer <token>`.
 
-| Method | Endpoint | Roles | Description |
-| --- | --- | --- | --- |
-| `POST` | `/api/auth/login` | Public | Login with `email` and `password`. |
-| `POST` | `/api/auth/register` | Public | Register a patient. |
-| `GET` | `/api/me` | All roles | Return current user. |
-| `GET` | `/api/doctors?specialisation=` | Public | Search doctors by specialisation. |
-| `POST` | `/api/appointments` | Patient | Book a slot with `doctorId`, `startsAt`, and `symptoms`. |
-| `GET` | `/api/appointments` | All roles | List appointments visible to the current role. |
-| `PATCH` | `/api/appointments/:id/cancel` | Patient, Admin | Cancel an appointment and queue notifications/calendar deletion. |
+| Method  | Endpoint                           | Roles          | Description                                                                                                                                                                          |
+| ------- | ---------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST`  | `/api/auth/login`                  | Public         | Login with `email` and `password`.                                                                                                                                                   |
+| `POST`  | `/api/auth/register`               | Public         | Register a patient.                                                                                                                                                                  |
+| `GET`   | `/api/me`                          | All roles      | Return current user.                                                                                                                                                                 |
+| `GET`   | `/api/doctors?specialisation=`     | Public         | Search doctors by specialisation.                                                                                                                                                    |
+| `POST`  | `/api/appointments`                | Patient        | Book a slot with `doctorId`, `startsAt`, and `symptoms`.                                                                                                                             |
+| `GET`   | `/api/appointments`                | All roles      | List appointments visible to the current role.                                                                                                                                       |
+| `PATCH` | `/api/appointments/:id/cancel`     | Patient, Admin | Cancel an appointment and queue notifications/calendar deletion.                                                                                                                     |
 | `PATCH` | `/api/appointments/:id/reschedule` | Patient, Admin | Reschedule a booked appointment to a new slot. Validates availability, updates the Google Calendar event, and queues rescheduled emails to patient and doctor. Body: `{ startsAt }`. |
-| `PATCH` | `/api/appointments/:id/visit` | Doctor | Save notes and prescription, generate patient summary, schedule medication reminder. |
-| `POST` | `/api/admin/doctors` | Admin | Create doctor login/profile with working hours and slot duration. |
-| `PATCH` | `/api/admin/doctors/:id/leave` | Admin | Mark leave date, cancel affected bookings, notify patients. |
-| `GET` | `/api/admin/ops` | Admin | Inspect email, calendar, and medication reminder queues. |
+| `PATCH` | `/api/appointments/:id/visit`      | Doctor         | Save notes and prescription, generate patient summary, schedule medication reminder.                                                                                                 |
+| `POST`  | `/api/admin/doctors`               | Admin          | Create doctor login/profile with working hours and slot duration.                                                                                                                    |
+| `PATCH` | `/api/admin/doctors/:id/leave`     | Admin          | Mark leave date, cancel affected bookings, notify patients.                                                                                                                          |
+| `GET`   | `/api/admin/ops`                   | Admin          | Inspect email, calendar, and medication reminder queues.                                                                                                                             |
 
 ## Database Schema
 
 The demo database is JSON at `data/db.json`, created automatically on first run.
 
-| Collection | Important fields |
-| --- | --- |
-| `users` | `id`, `role`, `name`, `email`, `password`, `doctorId` |
-| `doctors` | `id`, `userId`, `name`, `email`, `specialisation`, `workingHours`, `slotDuration`, `leaveDays` |
-| `appointments` | `id`, `doctorId`, `patientId`, `startsAt`, `symptoms`, `status`, `preVisitSummary`, `clinicalNotes`, `prescription`, `postVisitSummary`, `calendarEventId` |
-| `emailOutbox` | `id`, `to`, `subject`, `body`, `status`, `attempts`, `createdAt`, `lastAttemptAt` |
-| `calendarEvents` | `id`, `appointmentId`, `status`, `title`, `attendees`, `startsAt`, `durationMinutes` |
-| `medicationReminders` | `id`, `appointmentId`, `patientId`, `prescription`, `intervalHours`, `maxReminders`, `reminderCount`, `nextRunAt`, `status` |
+| Collection            | Important fields                                                                                                                                           |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `users`               | `id`, `role`, `name`, `email`, `password`, `doctorId`                                                                                                      |
+| `doctors`             | `id`, `userId`, `name`, `email`, `specialisation`, `workingHours`, `slotDuration`, `leaveDays`                                                             |
+| `appointments`        | `id`, `doctorId`, `patientId`, `startsAt`, `symptoms`, `status`, `preVisitSummary`, `clinicalNotes`, `prescription`, `postVisitSummary`, `calendarEventId` |
+| `emailOutbox`         | `id`, `to`, `subject`, `body`, `status`, `attempts`, `createdAt`, `lastAttemptAt`                                                                          |
+| `calendarEvents`      | `id`, `appointmentId`, `status`, `title`, `attendees`, `startsAt`, `durationMinutes`                                                                       |
+| `medicationReminders` | `id`, `appointmentId`, `patientId`, `prescription`, `nextRunAt`, `status`                                                                                  |
 
 For production, replace the JSON store with PostgreSQL or MySQL and enforce a unique index on active appointments: `(doctor_id, starts_at) WHERE status != 'cancelled'`.
 
@@ -95,33 +130,6 @@ Convert these clinical notes into a patient-friendly summary with medication sch
 ```
 
 LLM failures are handled gracefully by deterministic fallback functions in `server.js`, so booking and visit completion continue even when Gemini is unavailable.
-
-## Medication Reminders
-
-When a doctor completes a visit and submits a prescription, the system creates a medication reminder record and schedules email reminders for the patient based on the prescription frequency.
-
-The background job runs every 60 seconds and sends the next reminder when `nextRunAt` is due.
-
-**Frequency detection** — `parsePrescriptionFrequency()` reads the prescription text and picks the interval automatically:
-
-| Prescription says | Interval | Total reminders | Duration |
-| --- | --- | --- | --- |
-| "four times daily", "QID", "every 6 hours" | Every 6 h | 28 | 7 days |
-| "three times daily", "TID", "every 8 hours" | Every 8 h | 21 | 7 days |
-| "twice daily", "BID", "every 12 hours" | Every 12 h | 14 | 7 days |
-| "once daily", "OD", "every 24 hours" | Every 24 h | 7 | 7 days |
-| Unrecognised text | Every 12 h | 14 | Fallback |
-
-Each reminder email shows the patient the dose number and total (e.g. **"Medication reminder (dose 3 of 14)"**) and the full prescription text so they know exactly what to take.
-
-Once `reminderCount` reaches `maxReminders` the reminder status is set to `completed` and no further emails are sent. All reminder records are visible in the Admin Portal under **Integration status**.
-
-**To test reminders locally** without waiting 60 minutes:
-1. Complete a doctor visit with a prescription (e.g. *"Dolo 650mg twice daily for 3 days"*)
-2. Open `data/db.json`, find the reminder under `medicationReminders`, and set `nextRunAt` to a past date
-3. Temporarily change `60_000` to `5_000` in the `setInterval` call at the bottom of `server.js`
-4. Restart the server — the reminder fires within 5 seconds
-5. Revert both changes after testing
 
 ## Integration Setup
 
