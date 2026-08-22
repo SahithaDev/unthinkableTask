@@ -35,7 +35,7 @@ The app implements role-based login, doctor search, appointment booking with sym
       ![Slot booking flow](docs/screenshots/slotBooking.png) 
 - [x] Doctor leave → affected patients notified automatically
 - [x] Pre-visit LLM symptom summary (urgency level, chief complaint, suggested questions)
-- [x] Post-visit LLM patient-friendly summary (medication schedule, follow-up steps)
+- [x] Post-visit LLM patient-friendly summary (medication schedule, follow-up steps
       ![LLM-generated pre-visit summary](docs/screenshots/LLMSummary.png)
 - [x] Medication reminders based on prescription frequency (background job)
 - [x] Email notifications: booking confirmation, reminder, cancellation, reschedule
@@ -44,16 +44,6 @@ The app implements role-based login, doctor search, appointment booking with sym
 - [x] Graceful LLM failure handling (deterministic fallback summaries)
 - [x] Graceful notification failure handling (outbox + retry queue)
 
-## Proof of Core Features
-
-_(Add screenshots or a short GIF walkthrough here — these are the parts a reviewer can't verify without running the app locally, e.g. Google OAuth being tied to localhost.)_
-
-- [ ] Screenshot: booking rejected/retried on double-booking attempt
-- [ ] Screenshot: pre-visit LLM summary with urgency level shown on doctor portal
-- [ ] Screenshot: post-visit patient-friendly summary
-- [ ] Screenshot: Google Calendar event created after booking
-- [ ] Screenshot: email received (booking confirmation / cancellation)
-- [ ] Screenshot: admin leave-conflict notification triggered
 
 ## Setup Guide
 
