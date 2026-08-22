@@ -31,7 +31,7 @@ The app implements role-based login, doctor search, appointment booking with sym
 - [x] Admin creates and manages doctor profiles (specialisation, working hours, slot duration, leave days)
 - [x] Patient registration, login, doctor search by specialisation, slot booking
 - [x] Double-booking prevention & simultaneous booking handling — see [System Design Write-up](#system-design-write-up)
-      <img width="400" height="300" alt="image" src="https://github.com/user-attachments/assets/d44e26ad-368a-438c-958e-3d69cc06fc40" />
+      <img width="400" height="500" alt="image" src="https://github.com/user-attachments/assets/d44e26ad-368a-438c-958e-3d69cc06fc40" />
 
 - [x] Doctor leave → affected patients notified automatically
 - [x] Pre-visit LLM symptom summary (urgency level, chief complaint, suggested questions)
