@@ -76,7 +76,7 @@ The demo database is JSON at `data/db.json`, created automatically on first run.
 | `appointments` | `id`, `doctorId`, `patientId`, `startsAt`, `symptoms`, `status`, `preVisitSummary`, `clinicalNotes`, `prescription`, `postVisitSummary`, `calendarEventId` |
 | `emailOutbox` | `id`, `to`, `subject`, `body`, `status`, `attempts`, `createdAt`, `lastAttemptAt` |
 | `calendarEvents` | `id`, `appointmentId`, `status`, `title`, `attendees`, `startsAt`, `durationMinutes` |
-| `medicationReminders` | `id`, `appointmentId`, `patientId`, `prescription`, `nextRunAt`, `status` |
+| `medicationReminders` | `id`, `appointmentId`, `patientId`, `prescription`, `intervalHours`, `maxReminders`, `reminderCount`, `nextRunAt`, `status` |
 
 For production, replace the JSON store with PostgreSQL or MySQL and enforce a unique index on active appointments: `(doctor_id, starts_at) WHERE status != 'cancelled'`.
 
@@ -95,6 +95,33 @@ Convert these clinical notes into a patient-friendly summary with medication sch
 ```
 
 LLM failures are handled gracefully by deterministic fallback functions in `server.js`, so booking and visit completion continue even when Gemini is unavailable.
+
+## Medication Reminders
+
+When a doctor completes a visit and submits a prescription, the system creates a medication reminder record and schedules email reminders for the patient based on the prescription frequency.
+
+The background job runs every 60 seconds and sends the next reminder when `nextRunAt` is due.
+
+**Frequency detection** — `parsePrescriptionFrequency()` reads the prescription text and picks the interval automatically:
+
+| Prescription says | Interval | Total reminders | Duration |
+| --- | --- | --- | --- |
+| "four times daily", "QID", "every 6 hours" | Every 6 h | 28 | 7 days |
+| "three times daily", "TID", "every 8 hours" | Every 8 h | 21 | 7 days |
+| "twice daily", "BID", "every 12 hours" | Every 12 h | 14 | 7 days |
+| "once daily", "OD", "every 24 hours" | Every 24 h | 7 | 7 days |
+| Unrecognised text | Every 12 h | 14 | Fallback |
+
+Each reminder email shows the patient the dose number and total (e.g. **"Medication reminder (dose 3 of 14)"**) and the full prescription text so they know exactly what to take.
+
+Once `reminderCount` reaches `maxReminders` the reminder status is set to `completed` and no further emails are sent. All reminder records are visible in the Admin Portal under **Integration status**.
+
+**To test reminders locally** without waiting 60 minutes:
+1. Complete a doctor visit with a prescription (e.g. *"Dolo 650mg twice daily for 3 days"*)
+2. Open `data/db.json`, find the reminder under `medicationReminders`, and set `nextRunAt` to a past date
+3. Temporarily change `60_000` to `5_000` in the `setInterval` call at the bottom of `server.js`
+4. Restart the server — the reminder fires within 5 seconds
+5. Revert both changes after testing
 
 ## Integration Setup
 
