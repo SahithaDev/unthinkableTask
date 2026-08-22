@@ -8,7 +8,9 @@ loadEnv();
 const PORT = Number(process.env.PORT || 3000);
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 const APP_TIME_ZONE = process.env.APP_TIME_ZONE || "Asia/Kolkata";
-const DATA_DIR = path.join(__dirname, "data");
+const DATA_DIR = fs.existsSync("/data")
+  ? "/data"
+  : path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 const PUBLIC_DIR = path.join(__dirname, "public");
 const sessions = new Map();
