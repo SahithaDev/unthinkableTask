@@ -34,8 +34,12 @@ The app implements role-based login, doctor search, appointment booking with sym
       <img width="400" height="500" alt="image" src="https://github.com/user-attachments/assets/d44e26ad-368a-438c-958e-3d69cc06fc40" />
 
 - [x] Doctor leave → affected patients notified automatically
+      <img width="400" height="500" alt="image" src="https://github.com/user-attachments/assets/d6ae312c-113c-4d17-bb1c-2f7db6817365" />
+
 - [x] Pre-visit LLM symptom summary (urgency level, chief complaint, suggested questions)
 - [x] Post-visit LLM patient-friendly summary (medication schedule, follow-up steps)
+      <img width="400" height="500" alt="image" src="https://github.com/user-attachments/assets/a339d2ea-7670-4187-87a1-0e927f2ea7a1" />
+
 - [x] Medication reminders based on prescription frequency (background job)
 - [x] Email notifications: booking confirmation, reminder, cancellation, reschedule
 - [x] Google Calendar sync: create on booking, update on reschedule, delete on cancellation
