@@ -432,7 +432,7 @@ function extractJson(text) {
 async function generateWithGemini(prompt) {
   const apiKey = process.env.LLM_API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Gemini API key is not configured");
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {

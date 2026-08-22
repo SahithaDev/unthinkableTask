@@ -38,7 +38,7 @@ No `node_modules` are committed, and the current implementation uses only built-
 | `APP_BASE_URL` | No | Public URL for deployment. |
 | `APP_TIME_ZONE` | No | Calendar event time zone. Defaults to `Asia/Kolkata`. |
 | `LLM_API_KEY` | No | Gemini API key used to generate clean pre-visit and post-visit summaries. Without it, deterministic fallback summaries are used. |
-| `GEMINI_MODEL` | No | Gemini model name. Defaults to `gemini-2.5-flash`. |
+| `GEMINI_MODEL` | No | Gemini model name. Defaults to `gemini-2.0-flash`. |
 | `BREVO_API_KEY` | No | Sends queued transactional emails through Brevo. Without it, emails move through demo outbox states. |
 | `MAIL_FROM` | No | Sender address for real email integration. |
 | `MAIL_FROM_NAME` | No | Sender display name for Brevo emails. |
