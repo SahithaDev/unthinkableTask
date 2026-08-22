@@ -15,7 +15,7 @@ The app implements role-based login, doctor search, appointment booking with sym
 ## Live Demo
 
 - Hosted URL: `<add your deployed link here>`
-- Local: `http://localhost:3000` after following Setup Guide below
+- Local: `http://localhost:5000` after following Setup Guide below
 
 **Demo Accounts**
 
@@ -30,9 +30,9 @@ The app implements role-based login, doctor search, appointment booking with sym
 - [x] Role-based auth (patient / doctor / admin)
 - [x] Admin creates and manages doctor profiles (specialisation, working hours, slot duration, leave days)
 - [x] Patient registration, login, doctor search by specialisation, slot booking
-     ![Doctor availability management](docs/screenshots/drAvailability.png)
+      ![Doctor availability management](docs/screenshots/drAvailability.png)
 - [x] Double-booking prevention & simultaneous booking handling — see [System Design Write-up](#system-design-write-up)
-      ![Slot booking flow](docs/screenshots/slotBooking.png) 
+      ![Slot booking flow](docs/screenshots/slotBooking.png)
 - [x] Doctor leave → affected patients notified automatically
 - [x] Pre-visit LLM symptom summary (urgency level, chief complaint, suggested questions)
 - [x] Post-visit LLM patient-friendly summary (medication schedule, follow-up steps
@@ -44,10 +44,6 @@ The app implements role-based login, doctor search, appointment booking with sym
 - [x] Graceful LLM failure handling (deterministic fallback summaries)
 - [x] Graceful notification failure handling (outbox + retry queue)
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 590cbf99448455757fa9bb2539f628c4153b22b7
 ## Setup Guide
 
 1. Install Node.js 18 or newer.
