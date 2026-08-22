@@ -462,16 +462,26 @@ async function preVisitSummary(symptoms) {
   const fallback = fallbackPreVisitSummary(symptoms);
   try {
     const result = await generateWithGemini(`
-You are helping a doctor prepare for an appointment.
-Correct spelling and grammar, but do not invent symptoms.
-Return only valid JSON with this shape:
+You are a clinical triage assistant helping a doctor prepare before seeing a patient.
+
+Your tasks:
+1. Correct spelling and grammar in the patient's symptom description. Do NOT add, remove, or invent any symptoms.
+2. Write a single clear chief complaint sentence summarising what the patient reported.
+3. Assign an urgency level:
+   - High: any chest pain, difficulty breathing, severe pain, fainting, stroke signs, heavy bleeding, or anything life-threatening
+   - Medium: symptoms lasting more than 3 days, high fever, moderate pain, or worsening conditions
+   - Low: mild or short-duration symptoms with no red flags
+4. Write three focused questions the doctor should ask this specific patient to clarify their condition. Make them relevant to the reported symptoms — do not use generic filler questions.
+
+Return ONLY valid JSON with exactly this shape, no extra text:
 {
   "urgency": "Low | Medium | High",
-  "chiefComplaint": "one clean sentence",
-  "cleanedSymptoms": "spell-checked patient symptom description",
-  "suggestedQuestions": ["question 1", "question 2", "question 3"]
+  "chiefComplaint": "one clean sentence summarising the complaint",
+  "cleanedSymptoms": "corrected and readable version of the patient's own words",
+  "suggestedQuestions": ["specific question 1", "specific question 2", "specific question 3"]
 }
-Symptoms: ${symptoms}
+
+Patient symptoms: ${symptoms}
 `);
     return {
       urgency: ["Low", "Medium", "High"].includes(result.urgency)
@@ -493,14 +503,25 @@ async function postVisitSummary(notes, prescription) {
   const fallback = fallbackPostVisitSummary(notes, prescription);
   try {
     const result = await generateWithGemini(`
-Convert these clinical notes into a patient-friendly summary.
-Correct spelling and grammar, keep the advice simple, and do not add medical facts that are not present.
-Return only valid JSON with this shape:
+You are a medical communication specialist converting a doctor's clinical notes into a clear, friendly summary for the patient.
+
+Your tasks:
+1. Write a patient-friendly visit summary in plain language. Avoid medical jargon. If jargon must be used, briefly explain it.
+2. Write a clear medication schedule listing each medicine, its dose, frequency, and duration exactly as prescribed. If no prescription was given, say "No medication prescribed."
+3. Write specific follow-up steps the patient should take — include when to return, warning signs to watch for, and any lifestyle advice mentioned in the notes.
+
+Rules:
+- Do NOT add any medical advice, diagnoses, or facts that are not present in the notes.
+- Keep the tone warm, simple, and reassuring.
+- Write for someone with no medical background.
+
+Return ONLY valid JSON with exactly this shape, no extra text:
 {
-  "summary": "patient-friendly visit summary",
-  "medicationSchedule": "clear medication schedule",
-  "followUpSteps": "clear follow-up steps"
+  "summary": "plain-language visit summary for the patient",
+  "medicationSchedule": "each medicine with dose, frequency, and duration",
+  "followUpSteps": "specific next steps and warning signs to watch for"
 }
+
 Clinical notes: ${notes}
 Prescription: ${prescription || "No prescription entered"}
 `);
