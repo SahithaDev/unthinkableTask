@@ -1062,6 +1062,52 @@ async function runBackgroundJobs() {
       Date.now() + 12 * 60 * 60 * 1000,
     ).toISOString();
   }
+  // Process pending Google Calendar event deletions
+  const pendingDeletes = db.calendarEvents.filter(
+    (item) => item.status === "delete-queued",
+  );
+  if (pendingDeletes.length > 0 && hasGoogleCalendarConfig() && googleCalendarConnected(db)) {
+    let token;
+    try {
+      token = await refreshGoogleAccessToken(db);
+    } catch (error) {
+      console.error("Calendar deletion: could not refresh token", error.message);
+    }
+    if (token) {
+      for (const cal of pendingDeletes) {
+        if (!cal.googleEventId) {
+          // event was never created on Google (demo-created path), just mark deleted
+          cal.status = "deleted";
+          continue;
+        }
+        try {
+          const response = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${cal.googleEventId}?sendUpdates=all`,
+            {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+          // 204 = deleted, 410 = already gone — both are success
+          if (response.status === 204 || response.status === 410) {
+            cal.status = "deleted";
+          } else {
+            const data = await response.json().catch(() => ({}));
+            cal.status = "delete-failed";
+            cal.error = data.error?.message || `HTTP ${response.status}`;
+          }
+        } catch (error) {
+          cal.status = "delete-failed";
+          cal.error = error.message;
+        }
+      }
+    }
+  } else {
+    // No Google Calendar configured — mark queued deletions as deleted locally
+    for (const cal of pendingDeletes) {
+      if (!cal.googleEventId) cal.status = "deleted";
+    }
+  }
   writeDb(db);
 }
 
