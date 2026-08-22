@@ -60,8 +60,15 @@
           <div id="admin-appointments" class="list"></div>
         </section>
         <section class="panel">
-          <h2>Notification and calendar queues</h2>
-          <pre id="ops"></pre>
+          <h2>Google Calendar</h2>
+          <p id="gcal-status-text" class="muted">Checking connection status…</p>
+          <button id="gcal-connect-btn" class="primary" onclick="connectGoogleCalendar()" hidden>Connect Google Calendar</button>
+          <span id="gcal-connected-badge" hidden class="badge" style="background:#d1fae5;color:#065f46;">&#10003; Connected</span>
+          <div id="gcal-status" class="status"></div>
+        </section>
+        <section class="panel">
+          <h2>Integration status</h2>
+          <div id="ops-summary" class="list"></div>
         </section>
       </section>
     </main>

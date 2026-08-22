@@ -264,7 +264,37 @@ async function loadAdmin() {
     const appointments = await api("/api/appointments");
     $("#admin-appointments").innerHTML = appointments.appointments.map(appointment => appointmentCard(appointment)).join("") || "<p>No appointments yet.</p>";
     const ops = await api("/api/admin/ops");
-    $("#ops").textContent = JSON.stringify(ops, null, 2);
+    updateGoogleCalendarStatus(ops.integrations || {});
+    const summary = $("#ops-summary");
+    if (summary) {
+      const i = ops.integrations || {};
+      const emailQueued = (ops.emailOutbox || []).filter(e => e.status === "queued" || e.status === "demo-queued").length;
+      const emailSent   = (ops.emailOutbox || []).filter(e => e.status === "sent"   || e.status === "demo-sent").length;
+      const calCreated  = (ops.calendarEvents || []).filter(e => e.status === "created" || e.status === "demo-created").length;
+      const calQueued   = (ops.calendarEvents || []).filter(e => e.status === "queued").length;
+      const reminders   = (ops.medicationReminders || []).length;
+      function dot(on) { return `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${on ? "#0f766e" : "#d1d5db"};margin-right:6px;vertical-align:middle;"></span>`; }
+      summary.innerHTML = `
+        <article class="card">
+          <h3>Services</h3>
+          <p style="margin:4px 0">${dot(i.gemini)} Gemini AI ${i.gemini ? "active" : "not configured"}</p>
+          <p style="margin:4px 0">${dot(i.brevo)} Brevo email ${i.brevo ? "active" : "not configured"}</p>
+          <p style="margin:4px 0">${dot(i.googleCalendarConnected)} Google Calendar ${i.googleCalendarConnected ? "connected" : i.googleCalendarConfigured ? "configured, not connected" : "not configured"}</p>
+        </article>
+        <article class="card">
+          <h3>Email queue</h3>
+          <p style="margin:4px 0"><strong>${emailQueued}</strong> pending &nbsp;·&nbsp; <strong>${emailSent}</strong> sent</p>
+        </article>
+        <article class="card">
+          <h3>Calendar events</h3>
+          <p style="margin:4px 0"><strong>${calCreated}</strong> created &nbsp;·&nbsp; <strong>${calQueued}</strong> queued</p>
+        </article>
+        <article class="card">
+          <h3>Medication reminders</h3>
+          <p style="margin:4px 0"><strong>${reminders}</strong> scheduled</p>
+        </article>
+      `;
+    }
   } catch (error) {
     resetSession(error.message);
   }
@@ -319,6 +349,33 @@ async function registerPatient() {
   }
 }
 
+function updateGoogleCalendarStatus(integrations) {
+  const statusText = $("#gcal-status-text");
+  const connectBtn = $("#gcal-connect-btn");
+  const connectedBadge = $("#gcal-connected-badge");
+  if (!statusText) return;
+
+  if (!integrations.googleCalendarConfigured) {
+    statusText.textContent = "Google Calendar is not configured. Add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI to .env and restart the server.";
+    return;
+  }
+
+  if (integrations.googleCalendarConnected) {
+    statusText.textContent = "Google Calendar is connected. Appointments will automatically appear in the clinic calendar.";
+    if (connectedBadge) connectedBadge.removeAttribute("hidden");
+    if (connectBtn) connectBtn.setAttribute("hidden", "hidden");
+  } else {
+    statusText.textContent = "Google Calendar is configured but not yet connected. Click the button below to authorise access.";
+    if (connectBtn) connectBtn.removeAttribute("hidden");
+    if (connectedBadge) connectedBadge.setAttribute("hidden", "hidden");
+  }
+}
+
+function connectGoogleCalendar() {
+  status("#gcal-status", "Redirecting to Google…");
+  window.location.href = "/oauth/google/start";
+}
+
 window.login = login;
 window.logout = logout;
 window.loadPatient = loadPatient;
@@ -330,5 +387,7 @@ window.completeVisit = completeVisit;
 window.addDoctor = addDoctor;
 window.markLeave = markLeave;
 window.registerPatient = registerPatient;
+window.connectGoogleCalendar = connectGoogleCalendar;
+window.updateGoogleCalendarStatus = updateGoogleCalendarStatus;
 window.loadDoctors = loadDoctors;
 window.renderSelectedDoctorHelp = renderSelectedDoctorHelp;
