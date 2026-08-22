@@ -17,6 +17,10 @@ The app implements role-based login, doctor search, appointment booking with sym
 - Hosted URL: `<add your deployed link here>`
 - Local: `http://localhost:5000` after following Setup Guide below
 
+**Hosted URL:** [https://unthinkabletask.onrender.com](https://unthinkabletask.onrender.com)
+
+> Note: The free Render instance spins down after 15 minutes of inactivity. The first request after a cold start may take 30–50 seconds.
+
 **Demo Accounts**
 
 | Role    | Email                 | Password     |
