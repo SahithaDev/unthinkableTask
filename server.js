@@ -537,14 +537,30 @@ Prescription: ${prescription || "No prescription entered"}
   }
 }
 
+function parsePrescriptionFrequency(prescription) {
+  const text = prescription.toLowerCase();
+  // times per day patterns
+  if (/four\s*times|4\s*times|q\.?i\.?d|every\s*6\s*(hours?|hrs?)|6\s*hourly/.test(text)) return { intervalHours: 6, maxReminders: 28 };
+  if (/three\s*times|3\s*times|t\.?i\.?d|every\s*8\s*(hours?|hrs?)|8\s*hourly/.test(text))  return { intervalHours: 8, maxReminders: 21 };
+  if (/twice|two\s*times|2\s*times|b\.?i\.?d|every\s*12\s*(hours?|hrs?)|12\s*hourly/.test(text)) return { intervalHours: 12, maxReminders: 14 };
+  if (/once\s*daily|once\s*a\s*day|every\s*24|one\s*time|o\.?d/.test(text)) return { intervalHours: 24, maxReminders: 7 };
+  // duration clues — "for X days" → maxReminders = X * (24 / intervalHours)
+  // fallback: twice daily
+  return { intervalHours: 12, maxReminders: 14 };
+}
+
 function createMedicationReminder(db, appointment, prescription) {
   if (!prescription) return;
+  const { intervalHours, maxReminders } = parsePrescriptionFrequency(prescription);
   db.medicationReminders.push({
     id: id("reminder"),
     appointmentId: appointment.id,
     patientId: appointment.patientId,
     prescription,
-    nextRunAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    intervalHours,
+    maxReminders,
+    reminderCount: 0,
+    nextRunAt: new Date(Date.now() + intervalHours * 60 * 60 * 1000).toISOString(),
     status: "scheduled",
   });
 }
@@ -1128,15 +1144,22 @@ async function runBackgroundJobs() {
     (item) => item.status === "scheduled" && new Date(item.nextRunAt) <= now,
   )) {
     const patient = db.users.find((item) => item.id === reminder.patientId);
+    const intervalHours = reminder.intervalHours || 12;
+    const maxReminders  = reminder.maxReminders  || 14;
+    reminder.reminderCount = (reminder.reminderCount || 0) + 1;
     enqueueEmail(
       db,
       patient.email,
-      "Medication reminder",
-      reminder.prescription,
+      `Medication reminder (dose ${reminder.reminderCount} of ${maxReminders})`,
+      `This is a reminder to take your medication as prescribed:\n\n${reminder.prescription}`,
     );
-    reminder.nextRunAt = new Date(
-      Date.now() + 12 * 60 * 60 * 1000,
-    ).toISOString();
+    if (reminder.reminderCount >= maxReminders) {
+      reminder.status = "completed";
+    } else {
+      reminder.nextRunAt = new Date(
+        Date.now() + intervalHours * 60 * 60 * 1000,
+      ).toISOString();
+    }
   }
   // Process pending Google Calendar event deletions
   const pendingDeletes = db.calendarEvents.filter(
