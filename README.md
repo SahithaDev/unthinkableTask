@@ -40,17 +40,6 @@ The app implements role-based login, doctor search, appointment booking with sym
 - [x] Graceful LLM failure handling (deterministic fallback summaries)
 - [x] Graceful notification failure handling (outbox + retry queue)
 
-## Proof of Core Features
-
-_(Add screenshots or a short GIF walkthrough here — these are the parts a reviewer can't verify without running the app locally, e.g. Google OAuth being tied to localhost.)_
-
-- [ ] Screenshot: booking rejected/retried on double-booking attempt
-- [ ] Screenshot: pre-visit LLM summary with urgency level shown on doctor portal
-- [ ] Screenshot: post-visit patient-friendly summary
-- [ ] Screenshot: Google Calendar event created after booking
-- [ ] Screenshot: email received (booking confirmation / cancellation)
-- [ ] Screenshot: admin leave-conflict notification triggered
-
 ## Setup Guide
 
 1. Install Node.js 18 or newer.
@@ -61,7 +50,7 @@ _(Add screenshots or a short GIF walkthrough here — these are the parts a revi
 npm start
 ```
 
-4. Open `http://localhost:3000`.
+4. Open `http://localhost:5000`.
 
 No `node_modules` are committed, and the current implementation uses only built-in Node.js modules to keep the submission small.
 
@@ -69,7 +58,7 @@ No `node_modules` are committed, and the current implementation uses only built-
 
 | Name                   | Required | Purpose                                                                                                                          |
 | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`                 | No       | Server port. Defaults to `3000`.                                                                                                 |
+| `PORT`                 | No       | Server port. Defaults to `5000`.                                                                                                 |
 | `APP_BASE_URL`         | No       | Public URL for deployment.                                                                                                       |
 | `APP_TIME_ZONE`        | No       | Calendar event time zone. Defaults to `Asia/Kolkata`.                                                                            |
 | `LLM_API_KEY`          | No       | Gemini API key used to generate clean pre-visit and post-visit summaries. Without it, deterministic fallback summaries are used. |
@@ -120,13 +109,43 @@ For production, replace the JSON store with PostgreSQL or MySQL and enforce a un
 Pre-visit prompt:
 
 ```text
-Analyse these symptoms and return: urgency level (Low / Medium / High), chief complaint, and three suggested questions for the doctor. Symptoms: <symptoms>
+1. Correct spelling and grammar in the patient's symptom description. Do NOT add, remove, or invent any symptoms.
+2. Write a single clear chief complaint sentence summarising what the patient reported.
+3. Assign an urgency level:
+   - High: any chest pain, difficulty breathing, severe pain, fainting, stroke signs, heavy bleeding, or anything life-threatening
+   - Medium: symptoms lasting more than 3 days, high fever, moderate pain, or worsening conditions
+   - Low: mild or short-duration symptoms with no red flags
+4. Write three focused questions the doctor should ask this specific patient to clarify their condition. Make them relevant to the reported symptoms — do not use generic filler questions.
+
+Return ONLY valid JSON with exactly this shape, no extra text:
+{
+  "urgency": "Low | Medium | High",
+  "chiefComplaint": "one clean sentence summarising the complaint",
+  "cleanedSymptoms": "corrected and readable version of the patient's own words",
+  "suggestedQuestions": ["specific question 1", "specific question 2", "specific question 3"]
+}
 ```
 
 Post-visit prompt:
 
 ```text
-Convert these clinical notes into a patient-friendly summary with medication schedule and follow-up steps: <notes>
+Your tasks:
+1. Write a patient-friendly visit summary in plain language. Avoid medical jargon. If jargon must be used, briefly explain it.
+2. Write a clear medication schedule listing each medicine, its dose, frequency, and duration exactly as prescribed. If no prescription was given, say "No medication prescribed."
+3. Write specific follow-up steps the patient should take — include when to return, warning signs to watch for, and any lifestyle advice mentioned in the notes.
+
+Rules:
+- Do NOT add any medical advice, diagnoses, or facts that are not present in the notes.
+- Keep the tone warm, simple, and reassuring.
+- Write for someone with no medical background.
+
+Return ONLY valid JSON with exactly this shape, no extra text:
+{
+  "summary": "plain-language visit summary for the patient",
+  "medicationSchedule": "each medicine with dose, frequency, and duration",
+  "followUpSteps": "specific next steps and warning signs to watch for"
+}
+
 ```
 
 LLM failures are handled gracefully by deterministic fallback functions in `server.js`, so booking and visit completion continue even when Gemini is unavailable.
