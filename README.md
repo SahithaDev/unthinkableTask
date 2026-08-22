@@ -30,13 +30,17 @@ The app implements role-based login, doctor search, appointment booking with sym
 - [x] Role-based auth (patient / doctor / admin)
 - [x] Admin creates and manages doctor profiles (specialisation, working hours, slot duration, leave days)
 - [x] Patient registration, login, doctor search by specialisation, slot booking
+     ![Doctor availability management](docs/screenshots/drAvailability.png)
 - [x] Double-booking prevention & simultaneous booking handling — see [System Design Write-up](#system-design-write-up)
+      ![Slot booking flow](docs/screenshots/slotBooking.png) 
 - [x] Doctor leave → affected patients notified automatically
 - [x] Pre-visit LLM symptom summary (urgency level, chief complaint, suggested questions)
 - [x] Post-visit LLM patient-friendly summary (medication schedule, follow-up steps)
+      ![LLM-generated pre-visit summary](docs/screenshots/LLMSummary.png)
 - [x] Medication reminders based on prescription frequency (background job)
 - [x] Email notifications: booking confirmation, reminder, cancellation, reschedule
 - [x] Google Calendar sync: create on booking, update on reschedule, delete on cancellation
+      ![Calendar event created on booking](docs/screenshots/calender.png)
 - [x] Graceful LLM failure handling (deterministic fallback summaries)
 - [x] Graceful notification failure handling (outbox + retry queue)
 
